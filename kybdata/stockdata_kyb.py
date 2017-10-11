@@ -1,4 +1,4 @@
-#!/Users/yuweifu/Desktop/vir/bin/python
+#!/root/Fudan/kybdata/bin/python
 # -*- coding:utf-8 -*-
 import time
 import logging
@@ -9,9 +9,11 @@ from datetime import datetime
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 
-CALENDAR = pd.read_csv("CONSTANT_DATA/TRADE_CALENDAR.csv", index_col=0, encoding="utf-8")["Date"].tolist()
-STOCK_DATA = pd.read_csv("CONSTANT_DATA/STOCK_DATA.csv", index_col=0, encoding="utf-8")
+CALENDAR = pd.read_csv("/root/Fudan/kybdata/CONSTANT_DATA/TRADE_CALENDAR.csv", index_col=0, encoding="utf-8")["Date"].tolist()
+STOCK_DATA = pd.read_csv("/root/Fudan/kybdata/CONSTANT_DATA/STOCK_DATA.csv", index_col=0, encoding="utf-8")
 logging.basicConfig(level=logging.INFO)
+PASSWORD = "4Hu#Epe7Ejeze!@6"
+
 
 def tick(conn, cursor):
     r = requests.post("http://www.kanyanbao.com.cn/websocket/quotes.json", data={"stkcodes":",".join(STOCK_DATA.index.tolist())})
@@ -23,12 +25,12 @@ def tick(conn, cursor):
         placeholders = ', '.join(['%s'] * len(i))
         columns = ', '.join(i.keys())
         sql = "INSERT INTO %s ( %s ) VALUES ( %s )" % (stock, columns, placeholders)
-        cursor.execute(sql, i.values())
+        cursor.execute(sql, list(i.values()))
     conn.commit()
 
 
 def create_tables():
-    conn = pymysql.connect(host='127.0.0.1', port=3306, user='root', passwd='password', db='StockQuote', charset='utf8')
+    conn = pymysql.connect(host='127.0.0.1', port=3306, user='root', passwd=PASSWORD, db='StockQuote', charset='utf8')
     cursor = conn.cursor()
     for stock in STOCK_DATA.index[:]:
         SQL = """ CREATE TABLE `{}` (
@@ -80,7 +82,7 @@ def create_tables():
             ENGINE=InnoDB DEFAULT CHARSET=utf8;
             """.format(stock)
         cursor.execute(SQL)
-        print("Finished {}".format(stock))
+        logging.info("Finished {}".format(stock))
     conn.commit()
     cursor.close()
     conn.close()
@@ -88,20 +90,18 @@ def create_tables():
 
 def run():
     today = datetime.now().strftime("%Y-%m-%d")
-    # test
-    CALENDAR.append(today)
     if today in CALENDAR:
-        print("#"*50 + "\nBegin getting data for {}".format(today))
-        conn = pymysql.connect(host='127.0.0.1', port=3306, user='root', passwd='password', db='StockQuote', charset='utf8')
+        logging.info("#"*50 + "\nBegin getting data for {}".format(today))
+        conn = pymysql.connect(host='127.0.0.1', port=3306, user='root', passwd=PASSWORD, db='StockQuote', charset='utf8')
         cursor = conn.cursor()
+
         # Trigger every minute
         global scheduler
-        scheduler = BlockingScheduler()
-        scheduler.add_job(tick, 'interval', minutes=1, start_date='{} 11:45:00'.format(today), end_date='{} 11:50:00'.format(today), args=[conn, cursor])
-        scheduler.add_job(tick, 'interval', minutes=1, start_date='{} 11:55:00'.format(today), end_date='{} 12:00:00'.format(today), args=[conn, cursor])
+        scheduler = BlockingScheduler()        
+        scheduler.add_job(tick, 'interval', minutes=1, start_date='{} 09:30:00'.format(today), end_date='{} 11:30:00'.format(today), args=[conn, cursor])
+        scheduler.add_job(tick, 'interval', minutes=1, start_date='{} 13:00:00'.format(today), end_date='{} 15:00:00'.format(today), args=[conn, cursor])
         try:
             scheduler.start()
-            print("Done at {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             cursor.close()
             conn.close()
         except (KeyboardInterrupt, SystemExit):
@@ -110,7 +110,7 @@ def run():
             cursor.close()
             conn.close()
     else:
-        print("Today is not a trade day.")
+        logging.info("Today is not a trade day.")
 
 
 if __name__ == "__main__":
